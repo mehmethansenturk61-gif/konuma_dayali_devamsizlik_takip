@@ -42,6 +42,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "build:web": "expo export -p web && node scripts/add-icon.js",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
