@@ -5,7 +5,7 @@
 // Bu dosyayı App.js ile değiştir, ardından: npx expo start -c
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text as RNText, TextInput, TouchableOpacity, ScrollView, Switch, Alert as RNAlert, StatusBar, Platform, useColorScheme, BackHandler } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -562,7 +562,7 @@ export default function App() {
   if (!state) return null;
   const mode = state.settings.theme || 'auto', dark = mode === 'dark' || (mode === 'auto' && scheme === 'dark');
   applyTheme(dark, state.settings.accent || '#4F46E5');
-  const wrap = c => <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}><StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />{c}</SafeAreaView>;
+  const wrap = c => <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}><StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />{c}</SafeAreaView></SafeAreaProvider>;
   if (!state.uni || !state.profile || changingUni) return wrap(<UniStep initial={state.profile} onBack={state.uni && state.profile ? () => setChangingUni(false) : undefined} onPick={(u, p) => { update(s => ({ ...s, uni: u, profile: p })); setChangingUni(false); }} />);
   if (!state.setupDone) return wrap(<ScheduleStep onBack={() => setChangingUni(true)} courses={state.courses} onAdd={c => update(s => ({ ...s, courses: [...s.courses, c] }))} onFinish={o => update(s => { const n = { ...s, setupDone: true, settings: { ...s.settings, semStart: o?.start || s.settings.semStart || null } }; return o?.past ? backfillPast(n) : n; })} />);
 
