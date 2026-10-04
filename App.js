@@ -1,10 +1,10 @@
 // Devam Takip — Expo (React Native) MVP
 // Kurulum: npx create-expo-app devam-takip && cd devam-takip
 // npx expo install expo-location expo-notifications expo-document-picker @react-native-async-storage/async-storage @expo/vector-icons react-native-safe-area-context react-native-maps expo-linear-gradient
-// npm install xlsx
+// npm install xlsx lz-string
 // Bu dosyayı App.js ile değiştir, ardından: npx expo start -c
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text as RNText, TextInput, TouchableOpacity, ScrollView, Switch, Alert as RNAlert, StatusBar, Platform, useColorScheme, BackHandler } from 'react-native';
+import { View, Text as RNText, TextInput, TouchableOpacity, ScrollView, Switch, Alert as RNAlert, StatusBar, Platform, useColorScheme, BackHandler, Share } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 const Maps = Platform.OS === 'web' ? null : require('react-native-maps');
 import { LinearGradient } from 'expo-linear-gradient';
 import * as XLSX from 'xlsx';
+import LZString from 'lz-string';
 const Text = ({ children, ...p }) => <RNText {...p}>{React.Children.map(children, ch => typeof ch === 'string' ? cap(ch) : ch)}</RNText>;
 const Alert = {
   alert: (t, m, b, o) => {
@@ -165,6 +166,27 @@ const store = {
 };
 const initial = { uni: null, profile: null, courses: [], records: {}, settings: { radius: 150, notif: true, locOk: false, theme: 'auto', accent: '#4F46E5' }, setupDone: false };
 
+/* ---------- Yedekleme (kod / link ile veri taşıma) ---------- */
+const BK = 'DT1:';
+const makeCode = st => BK + LZString.compressToEncodedURIComponent(JSON.stringify(st));
+const readCode = t => {
+  try {
+    const c = String(t || '').trim().replace(/^.*#yedek=/, '');
+    if (!c.startsWith(BK)) return null;
+    const s = JSON.parse(LZString.decompressFromEncodedURIComponent(c.slice(BK.length)));
+    return s && Array.isArray(s.courses) && s.records ? s : null;
+  } catch { return null; }
+};
+const applyBackup = (update, s) => update(() => normNames({ ...initial, ...s, settings: { ...initial.settings, ...s.settings } }));
+const shareText = async text => {
+  if (Platform.OS === 'web') {
+    try { await navigator.clipboard.writeText(text); return 'copied'; }
+    catch { window.prompt('Kopyalayıp WhatsApp\'a yapıştır:', text); return 'prompt'; }
+  }
+  try { await Share.share({ message: text }); } catch {}
+  return 'shared';
+};
+
 /* ---------- Konum servisi ---------- */
 async function getPosition() {
   const { status } = await Location.requestForegroundPermissionsAsync();
@@ -201,7 +223,8 @@ const Btn = ({ title, onPress, kind = 'pri', icon, disabled, style }) => {
     {icon && <Ionicons name={icon} size={20} color={fg} style={{ marginRight: 8 }} />}<Text style={{ color: fg, fontWeight: '700', fontSize: 16 }}>{title}</Text></TouchableOpacity>; };
 const H1 = ({ children }) => <Text style={{ fontSize: 28, fontWeight: '800', color: C.ink, marginBottom: 6 }}>{children}</Text>;
 const Sub = ({ children, style }) => <Text style={[{ color: C.mute, fontSize: 14 }, style]}>{children}</Text>;
-const Input = props => <TextInput placeholderTextColor={C.mute} {...props} placeholder={cap(props.placeholder)} style={[{ backgroundColor: C.card, borderRadius: 14, padding: 14, fontSize: 16, color: C.ink, borderWidth: 1, borderColor: C.line, marginBottom: 10 }, props.style]} />;
+const noOutline = Platform.OS === 'web' ? { outlineStyle: 'none', outlineWidth: 0, outlineColor: 'transparent' } : null;
+const Input = props => <TextInput placeholderTextColor={C.mute} {...props} placeholder={cap(props.placeholder)} style={[{ backgroundColor: C.card, borderRadius: 14, padding: 14, fontSize: 16, color: C.ink, borderWidth: 1, borderColor: C.line, marginBottom: 10 }, noOutline, props.style]} />;
 const Bar = ({ ratio }) => <View style={{ height: 8, backgroundColor: C.line, borderRadius: 4, marginTop: 8 }}><View style={{ height: 8, borderRadius: 4, width: `${Math.max(3, ratio * 100)}%`, backgroundColor: ratio >= 0.8 ? C.bad : ratio >= 0.5 ? '#F59E0B' : C.ok }} /></View>;
 const Screen = ({ children }) => <View style={{ flex: 1 }}><BgDeco /><ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">{children}</ScrollView></View>;
 const Back = ({ onPress, label = 'Geri' }) => <TouchableOpacity onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: C.card, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 14, marginBottom: 14, borderWidth: 1, borderColor: C.line }}><Ionicons name="chevron-back" size={18} color={C.pri} /><Text style={{ color: C.pri, fontWeight: '700', marginLeft: 2 }}>{label}</Text></TouchableOpacity>;
@@ -209,7 +232,7 @@ const Back = ({ onPress, label = 'Geri' }) => <TouchableOpacity onPress={onPress
 /* ---------- Kurulum: üniversite ---------- */
 const BOLUMLER = ['Acil Yardım ve Afet Yönetimi', 'Adalet', 'Aktüerya Bilimleri', 'Alman Dili ve Edebiyatı', 'Ameliyathane Hizmetleri', 'Antrenörlük Eğitimi', 'Antropoloji', 'Arap Dili ve Edebiyatı', 'Arkeoloji', 'Arşivcilik', 'Astronomi ve Uzay Bilimleri', 'Ağız ve Diş Sağlığı', 'Aşçılık', 'Bankacılık ve Finans', 'Bankacılık ve Sigortacılık', 'Beden Eğitimi ve Spor Öğretmenliği', 'Beslenme ve Diyetetik', 'Bilgi Güvenliği Teknolojisi', 'Bilgisayar Mühendisliği', 'Bilgisayar Programcılığı', 'Bilgisayar ve Öğretim Teknolojileri Öğretmenliği', 'Bilişim Sistemleri Mühendisliği', 'Bilişim Sistemleri ve Teknolojileri', 'Bitki Koruma', 'Biyokimya', 'Biyoloji', 'Biyomedikal Mühendisliği', 'Biyomühendislik', 'Büro Yönetimi ve Yönetici Asistanlığı', 'Coğrafya', 'Deniz Ulaştırma İşletme Mühendisliği', 'Denizcilik İşletmeleri Yönetimi', 'Dil ve Konuşma Terapisi', 'Diş Hekimliği', 'Dış Ticaret', 'Ebelik', 'Eczacılık', 'Eczane Hizmetleri', 'Ekonometri', 'Ekonomi', 'Elektrik Mühendisliği', 'Elektrik Programı', 'Elektrik-Elektronik Mühendisliği', 'Elektronik Teknolojisi', 'Elektronik ve Haberleşme Mühendisliği', 'Endüstri Mühendisliği', 'Endüstriyel Tasarım', 'Enerji Sistemleri Mühendisliği', 'Ergoterapi', 'Felsefe', 'Fen Bilgisi Öğretmenliği', 'Fizik', 'Fizik Mühendisliği', 'Fizyoterapi ve Rehabilitasyon', 'Fransız Dili ve Edebiyatı', 'Gastronomi ve Mutfak Sanatları', 'Gazetecilik', 'Gemi İnşaatı ve Gemi Makineleri Mühendisliği', 'Genetik ve Biyomühendislik', 'Girişimcilik', 'Grafik Tasarım', 'Gıda Mühendisliği', 'Halkla İlişkiler ve Tanıtım', 'Harita Mühendisliği', 'Harita ve Kadastro', 'Hava Trafik Kontrol', 'Havacılık ve Uzay Mühendisliği', 'Havacılık Yönetimi', 'Hemşirelik', 'Heykel', 'Hukuk', 'İktisat', 'İlahiyat', 'İletişim Tasarımı', 'İlk ve Acil Yardım', 'İngiliz Dili ve Edebiyatı', 'İngilizce Öğretmenliği', 'İnsan Kaynakları Yönetimi', 'İnşaat Mühendisliği', 'İnşaat Teknolojisi', 'İslami İlimler', 'İstatistik', 'İç Mimarlık', 'İşletme', 'Japon Dili ve Edebiyatı', 'Jeofizik Mühendisliği', 'Jeoloji Mühendisliği', 'Kamu Yönetimi', 'Kimya', 'Kimya Mühendisliği', 'Kontrol ve Otomasyon Mühendisliği', 'Kütüphanecilik ve Bilgi Belge Yönetimi', 'Lojistik Yönetimi', 'Maden Mühendisliği', 'Makine Mühendisliği', 'Maliye', 'Matematik', 'Matematik Mühendisliği', 'Matematik Öğretmenliği', 'Mekatronik Mühendisliği', 'Mekatronik Programı', 'Metalurji ve Malzeme Mühendisliği', 'Mimarlık', 'Moda Tasarımı', 'Moleküler Biyoloji ve Genetik', 'Muhasebe ve Finans Yönetimi', 'Mütercim Tercümanlık', 'Müzik', 'Müzik Öğretmenliği', 'Nükleer Enerji Mühendisliği', 'Odyoloji', 'Okul Öncesi Öğretmenliği', 'Optisyenlik', 'Orman Endüstri Mühendisliği', 'Orman Mühendisliği', 'Otel Yönetimi', 'Otomotiv Mühendisliği', 'Pazarlama', 'Petrol ve Doğalgaz Mühendisliği', 'Peyzaj Mimarlığı', 'Pilot Yetiştirme', 'Pilotaj', 'Polimer Mühendisliği', 'Psikoloji', 'Psikolojik Danışmanlık ve Rehberlik', 'Radyo, Televizyon ve Sinema', 'Radyoterapi', 'Rehberlik ve Psikolojik Danışmanlık', 'Reklamcılık', 'Rekreasyon', 'Resim', 'Resim-İş Öğretmenliği', 'Rus Dili ve Edebiyatı', 'Sahne Sanatları', 'Sanat Tarihi', 'Sağlık Yönetimi', 'Seramik ve Cam Tasarımı', 'Siber Güvenlik', 'Sigortacılık', 'Sinema ve Televizyon', 'Siyaset Bilimi ve Kamu Yönetimi', 'Sosyal Bilgiler Öğretmenliği', 'Sosyal Hizmet', 'Sosyoloji', 'Spor Bilimleri', 'Spor Yöneticiliği', 'Su Ürünleri Mühendisliği', 'Sınıf Öğretmenliği', 'Tarih', 'Tarım Ekonomisi', 'Tekstil Mühendisliği', 'Tekstil ve Moda Tasarımı', 'Ticaret ve Lojistik', 'Tiyatro', 'Toprak Bilimi ve Bitki Besleme', 'Turizm İşletmeciliği', 'Turizm Rehberliği', 'Türk Dili ve Edebiyatı', 'Türkçe Öğretmenliği', 'Tıbbi Dokümantasyon ve Sekreterlik', 'Tıbbi Laboratuvar Teknikleri', 'Tıp', 'Uluslararası İlişkiler', 'Uluslararası Ticaret ve Finansman', 'Uluslararası Ticaret ve Lojistik', 'Uçak Mühendisliği', 'Veri Bilimi ve Analitiği', 'Veterinerlik', 'Yapay Zeka Mühendisliği', 'Yazılım Mühendisliği', 'Yeni Medya ve İletişim', 'Yönetim Bilişim Sistemleri', 'Ziraat Mühendisliği', 'Zootekni', 'Çalışma Ekonomisi ve Endüstri İlişkileri', 'Çevre Mühendisliği', 'Çocuk Gelişimi', 'Özel Eğitim Öğretmenliği', 'Şehir ve Bölge Planlama'];
 const Field = ({ icon, ...rest }) => <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 14, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: C.line }}>
-  <Ionicons name={icon} size={18} color={C.pri} /><TextInput placeholderTextColor={C.mute} {...rest} placeholder={cap(rest.placeholder)} style={{ flex: 1, padding: 13, fontSize: 16, color: C.ink }} /></View>;
+  <Ionicons name={icon} size={18} color={C.pri} /><TextInput placeholderTextColor={C.mute} {...rest} placeholder={cap(rest.placeholder)} style={[{ flex: 1, padding: 13, fontSize: 16, color: C.ink }, noOutline]} /></View>;
 
 function UniStep({ onPick, initial, onBack }) {
   const [q, setQ] = useState('');
@@ -499,7 +522,18 @@ function WeekEditor({ state, update, back }) {
 function Settings({ state, update, onChangeUni, openCourse }) {
   const [adding, setAdding] = useState(false);
   const [dt, setDt] = useState(''), [weekView, setWeekView] = useState(false);
+  const [code, setCode] = useState('');
   const set = (k, v) => update(s => ({ ...s, settings: { ...s.settings, [k]: v } }));
+  const backup = async link => {
+    const c = makeCode(state);
+    const text = link ? window.location.origin + window.location.pathname + '#yedek=' + c : c;
+    if ((await shareText(text)) === 'copied') Alert.alert('Kopyalandı', 'Şimdi WhatsApp\'ta kendi numarana yapıştırıp gönder.');
+  };
+  const restoreFromText = () => {
+    const s = readCode(code);
+    if (!s) return Alert.alert('Kod okunamadı', 'Yedek kodunu ya da linkini eksiksiz yapıştırdığından emin ol.');
+    Alert.alert('Geri yüklensin mi?', 'Mevcut verilerin yedektekiyle değiştirilecek.', [{ text: 'Vazgeç' }, { text: 'Geri Yükle', onPress: () => { applyBackup(update, s); setCode(''); } }]);
+  };
   const Row = ({ icon, label, onPress, right }) => <TouchableOpacity onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.line }}>
     <Ionicons name={icon} size={20} color={C.pri} /><Text style={{ marginLeft: 12, flex: 1, color: C.ink, fontSize: 16 }}>{label}</Text>{right}</TouchableOpacity>;
   const setHere = async () => { try { const p = await getPosition(); update(s => ({ ...s, uni: { ...s.uni, lat: p.latitude, lng: p.longitude } })); Alert.alert('Kaydedildi', 'Üniversite konumu şu anki konumun olarak ayarlandı.'); } catch (e) { Alert.alert('Konum alınamadı', locError(e)); } };
@@ -544,6 +578,13 @@ function Settings({ state, update, onChangeUni, openCourse }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
           <Text style={{ color: C.mute }}>{none ? 'Devamsızlık Sınırı Yok' : `Devamsızlık hakkı: ${al} ders`}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}><Btn kind="soft" title="−" onPress={() => setMax(c, none ? 6 : Math.max(0, al - 1))} style={{ paddingVertical: 6, paddingHorizontal: 16 }} /><Btn kind="soft" title="+" onPress={() => setMax(c, al >= 6 ? 'none' : al + 1)} style={{ paddingVertical: 6, paddingHorizontal: 16 }} /></View></View></View>; })}</Card>
+    <Card><Text style={{ fontWeight: '700', color: C.ink, marginBottom: 4 }}>💾 Yedekleme</Text>
+      <Sub style={{ marginBottom: 10 }}>Tarayıcı geçmişi temizlenirse veriler silinebilir. Yedek linkini kendine WhatsApp'tan at, gerekirse geri yükle.</Sub>
+      {Platform.OS === 'web' && <Btn kind="soft" icon="link" title="Yedek linkini oluştur ve kopyala" onPress={() => backup(true)} />}
+      <Btn kind="soft" icon="copy" title={Platform.OS === 'web' ? 'Sadece yedek kodunu kopyala' : 'Yedeği paylaş'} onPress={() => backup(false)} style={{ marginTop: 8 }} />
+      <Input placeholder="Yedek kodunu veya linkini buraya yapıştır" value={code} onChangeText={setCode} autoCapitalize="none" autoCorrect={false} style={{ marginTop: 12 }} />
+      <Btn kind="soft" icon="download" title="Yedekten geri yükle" onPress={restoreFromText} />
+    </Card>
     <Btn kind="bad" title="Verileri Sıfırla" icon="warning" onPress={() => Alert.alert('Tüm veriler silinsin mi?', 'Bu işlem geri alınamaz.', [{ text: 'Vazgeç' }, { text: 'Sıfırla', style: 'destructive', onPress: async () => { await store.clear(); update(() => initial); } }])} />
   </Screen>;
 }
@@ -557,6 +598,17 @@ export default function App() {
   useEffect(() => { store.load().then(s => setState(s ? normNames(s) : initial)); }, []);
   const update = useCallback(fn => setState(prev => { const next = fn(prev); store.save(next); return next; }), []);
   useEffect(() => { if (state?.setupDone) scheduleReminders(state.courses, state.settings.notif); }, [state?.courses, state?.settings?.notif, state?.setupDone]);
+
+  // Yedek linkiyle (#yedek=...) açılırsa geri yükleme teklif et (sadece web)
+  useEffect(() => {
+    if (!state || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const h = window.location.hash;
+    if (!h.startsWith('#yedek=')) return;
+    const s = readCode(h);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (!s) return Alert.alert('Yedek okunamadı', 'Link bozuk ya da eksik kopyalanmış.');
+    Alert.alert('Yedek bulundu', 'Mevcut verilerin yedektekiyle değiştirilsin mi?', [{ text: 'Vazgeç' }, { text: 'Geri Yükle', onPress: () => applyBackup(update, s) }]);
+  }, [!!state]);
 
   useEffect(() => { const h = BackHandler.addEventListener('hardwareBackPress', () => { if (detail) { setDetail(null); return true; } if (changingUni) { setChangingUni(false); return true; } if (tab !== 'home') { setTab('home'); return true; } return false; }); return () => h.remove(); }, [detail, tab, changingUni]);
   if (!state) return null;
