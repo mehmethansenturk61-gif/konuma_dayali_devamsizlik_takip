@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "devam-takip",
+    "name": "Konuma Göre Devamsızlık Takip",
     "slug": "devam-takip",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,7 +22,10 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Konuma Göre Devamsızlık Takip",
+      "shortName": "Devam Takip",
+      "description": "Üniversite öğrencileri için konum doğrulamalı ders devam ve devamsızlık takip uygulaması"
     },
     "plugins": [
       "expo-router",

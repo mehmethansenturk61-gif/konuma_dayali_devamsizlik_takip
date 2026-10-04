@@ -234,8 +234,10 @@ const BOLUMLER = ['Acil Yardım ve Afet Yönetimi', 'Adalet', 'Aktüerya Bilimle
 const Field = ({ icon, ...rest }) => <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 14, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, borderColor: C.line }}>
   <Ionicons name={icon} size={18} color={C.pri} /><TextInput placeholderTextColor={C.mute} {...rest} placeholder={cap(rest.placeholder)} style={[{ flex: 1, padding: 13, fontSize: 16, color: C.ink }, noOutline]} /></View>;
 
-function UniStep({ onPick, initial, onBack }) {
+function UniStep({ onPick, initial, onBack, onRestore }) {
   const [q, setQ] = useState('');
+  const [showRestore, setShowRestore] = useState(false), [rcode, setRcode] = useState('');
+  const doRestore = () => { const b = readCode(rcode); if (!b) return Alert.alert('Kod okunamadı', 'Yedek kodunu ya da linkini eksiksiz yapıştırdığından emin ol.'); onRestore(b); };
   const [p, setP] = useState(initial || { ad: '', soyad: '', bolum: '', sinif: '' });
   const set = (k, v) => setP(x => ({ ...x, [k]: v }));
   const [showSug, setShowSug] = useState(false);
@@ -249,6 +251,13 @@ function UniStep({ onPick, initial, onBack }) {
   return <Screen>
     {onBack && <Back onPress={onBack} />}
     <Hero eyebrow="Hoş geldin 🎓" title="Seni tanıyalım" line="Birkaç bilgi, sonra üniversiteni seç. Hepsi sadece telefonunda kalır." />
+    {onRestore && <View style={{ marginBottom: 12 }}>
+      <TouchableOpacity onPress={() => setShowRestore(v => !v)} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'center', paddingVertical: 6 }}>
+        <Ionicons name="cloud-download-outline" size={16} color={C.pri} /><Text style={{ color: C.pri, fontWeight: '700', marginLeft: 6, fontSize: 13 }}>Yedeğim var, geri yükle</Text></TouchableOpacity>
+      {showRestore && <Card style={{ marginTop: 6, marginBottom: 0 }}>
+        <Input placeholder="Yedek kodunu veya linkini yapıştır" value={rcode} onChangeText={setRcode} autoCapitalize="none" autoCorrect={false} />
+        <Btn kind="soft" icon="download" title="Geri Yükle" onPress={doRestore} /></Card>}
+    </View>}
     <Text style={{ fontWeight: '800', color: C.ink, fontSize: 18, marginBottom: 10 }}>1 · Bilgilerin</Text>
     <Card>
       <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -580,8 +589,7 @@ function Settings({ state, update, onChangeUni, openCourse }) {
           <View style={{ flexDirection: 'row', gap: 8 }}><Btn kind="soft" title="−" onPress={() => setMax(c, none ? 6 : Math.max(0, al - 1))} style={{ paddingVertical: 6, paddingHorizontal: 16 }} /><Btn kind="soft" title="+" onPress={() => setMax(c, al >= 6 ? 'none' : al + 1)} style={{ paddingVertical: 6, paddingHorizontal: 16 }} /></View></View></View>; })}</Card>
     <Card><Text style={{ fontWeight: '700', color: C.ink, marginBottom: 4 }}>💾 Yedekleme</Text>
       <Sub style={{ marginBottom: 10 }}>Tarayıcı geçmişi temizlenirse veriler silinebilir. Yedek linkini kendine WhatsApp'tan at, gerekirse geri yükle.</Sub>
-      {Platform.OS === 'web' && <Btn kind="soft" icon="link" title="Yedek linkini oluştur ve kopyala" onPress={() => backup(true)} />}
-      <Btn kind="soft" icon="copy" title={Platform.OS === 'web' ? 'Sadece yedek kodunu kopyala' : 'Yedeği paylaş'} onPress={() => backup(false)} style={{ marginTop: 8 }} />
+      <Btn kind="soft" icon={Platform.OS === 'web' ? 'link' : 'share-social'} title={Platform.OS === 'web' ? 'Yedek linkini oluştur ve kopyala' : 'Yedeği paylaş'} onPress={() => backup(Platform.OS === 'web')} />
       <Input placeholder="Yedek kodunu veya linkini buraya yapıştır" value={code} onChangeText={setCode} autoCapitalize="none" autoCorrect={false} style={{ marginTop: 12 }} />
       <Btn kind="soft" icon="download" title="Yedekten geri yükle" onPress={restoreFromText} />
     </Card>
@@ -615,7 +623,7 @@ export default function App() {
   const mode = state.settings.theme || 'auto', dark = mode === 'dark' || (mode === 'auto' && scheme === 'dark');
   applyTheme(dark, state.settings.accent || '#4F46E5');
   const wrap = c => <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}><StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />{c}</SafeAreaView></SafeAreaProvider>;
-  if (!state.uni || !state.profile || changingUni) return wrap(<UniStep initial={state.profile} onBack={state.uni && state.profile ? () => setChangingUni(false) : undefined} onPick={(u, p) => { update(s => ({ ...s, uni: u, profile: p })); setChangingUni(false); }} />);
+  if (!state.uni || !state.profile || changingUni) return wrap(<UniStep initial={state.profile} onBack={state.uni && state.profile ? () => setChangingUni(false) : undefined} onRestore={state.uni && state.profile ? undefined : b => applyBackup(update, b)} onPick={(u, p) => { update(s => ({ ...s, uni: u, profile: p })); setChangingUni(false); }} />);
   if (!state.setupDone) return wrap(<ScheduleStep onBack={() => setChangingUni(true)} courses={state.courses} onAdd={c => update(s => ({ ...s, courses: [...s.courses, c] }))} onFinish={o => update(s => { const n = { ...s, setupDone: true, settings: { ...s.settings, semStart: o?.start || s.settings.semStart || null } }; return o?.past ? backfillPast(n) : n; })} />);
 
   const course = state.courses.find(c => c.id === detail);
